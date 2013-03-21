@@ -21,7 +21,7 @@ namespace SocketLib
         /// <summary>
         /// 服务同步锁
         /// </summary>
-        private static ManualResetEvent mutex = new ManualResetEvent(false);
+        private static ManualResetEvent listenerStopEvent = new ManualResetEvent(false);
         /// <summary>
         /// 当前连接数
         /// </summary>
@@ -86,6 +86,8 @@ namespace SocketLib
         /// 发送信息完成后的事件
         /// </summary>
         public event SendCompletedHandler OnSended;
+
+        public event Action<string> ClientAccepted;
 
         /// <summary>
         /// 获取当前的并发数
@@ -176,18 +178,17 @@ namespace SocketLib
             }
             this.listenSocket.Listen(100);
             this.StartAccept(null);
-            //ThreadPool.QueueUserWorkItem((o) => {  });
             ThreadPool.QueueUserWorkItem((o) => { Listen(); });
             //开始监听已连接用户的发送数据
             StartListenThread();
             serverstate = ServerState.Running;
-            //mutex.WaitOne();
+            listenerStopEvent.WaitOne();
         }
 
         /// <summary>
         /// 开始监听线程的入口函数
         /// </summary>
-        public void Listen()
+        private void Listen()
         {
             while (true)
             {
@@ -270,46 +271,71 @@ namespace SocketLib
                 listenSocket.Close();
             listenSocket = null;
             Dispose();
-            mutex.Set();
+            listenerStopEvent.Set();
             serverstate = ServerState.Stoped;
         }
 
-
+        /// <summary>
+        /// 接受客户端的连接请求
+        /// </summary>
+        /// <param name="acceptEventArg"></param>
         private void StartAccept(SocketAsyncEventArgs acceptEventArg)
         {
             if (acceptEventArg == null)
             {
                 acceptEventArg = new SocketAsyncEventArgs();
+                byte[] acceptBuffer = new byte[1024];
+                acceptEventArg.SetBuffer(acceptBuffer, 0, acceptBuffer.Length);
                 acceptEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnAcceptCompleted);
             }
             else
                 acceptEventArg.AcceptSocket = null;
-            this.semaphoreAcceptedClients.WaitOne();
+            this.semaphoreAcceptedClients.WaitOne();//这个有啥用?
             Boolean willRaiseEvent = this.listenSocket.AcceptAsync(acceptEventArg);
             if (!willRaiseEvent)
             {
                 this.ProcessAccept(acceptEventArg);
             }
         }
+
+        /// <summary>
+        /// 客户端连接请求处理事件
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void OnAcceptCompleted(object sender, SocketAsyncEventArgs e)
         {
             this.ProcessAccept(e);
         }
+
+        /// <summary>
+        /// 客户端连接请求处理方法
+        /// </summary>
+        /// <param name="e"></param>
         private void ProcessAccept(SocketAsyncEventArgs e)
         {
             if (e.LastOperation != SocketAsyncOperation.Accept)    //检查上一次操作是否是Accept，不是就返回
                 return;
             //if (e.BytesTransferred <= 0)    //检查发送的长度是否大于0,不是就返回
             //    return;
-            string UID = GetIDByIP((e.AcceptSocket.RemoteEndPoint as IPEndPoint).Address.ToString());   //根据IP获取用户的UID
-            if (UID == string.Empty || UID == null || UID == "")
-                return;
-            if (readWritePool.BusyPoolContains(UID))    //判断现在的用户是否已经连接，避免同一用户开两个连接
-                return;
+
+            //string received = Encoding.Unicode.GetString(e.Buffer, e.Offset, e.BytesTransferred);
+            //if (string.Compare(received, ACCEPT_PACKAGE) != 0)
+            //{
+            //    return;  //非
+            //}
+
+            string UID = Guid.NewGuid().ToString();//使用Guid作为客户端请求的ID, 不使用Client IP的原因是允许同一个IP建立多个连接.
+            //GetIDByIP((e.AcceptSocket.RemoteEndPoint as IPEndPoint).Address.ToString());   //根据IP获取用户的UID
+            //if (UID == string.Empty || UID == null || UID == "")
+            //    return;
+            //if (readWritePool.BusyPoolContains(UID))    //判断现在的用户是否已经连接，避免同一用户开两个连接
+            //    return;
             SocketAsyncEventArgsWithId readEventArgsWithId = this.readWritePool.Pop(UID);
             readEventArgsWithId.ReceiveSAEA.UserToken = e.AcceptSocket;
             readEventArgsWithId.SendSAEA.UserToken = e.AcceptSocket;
             Interlocked.Increment(ref this.numConnections);
+            ClientAccepted(UID);
             this.StartAccept(e);
         }
 

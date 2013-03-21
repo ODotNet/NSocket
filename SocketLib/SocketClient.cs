@@ -84,6 +84,9 @@ namespace SocketLib
 
             connectArgs.UserToken = this.clientSocket;
             connectArgs.RemoteEndPoint = this.hostEndPoint;
+            byte[] connectBuffer = new byte[32768];
+            listenerSocketAsyncEventArgs.UserToken = clientSocket;
+            listenerSocketAsyncEventArgs.SetBuffer(connectBuffer, 0, connectBuffer.Length);
             connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
             clientSocket.ConnectAsync(connectArgs);
             //等待连接结果

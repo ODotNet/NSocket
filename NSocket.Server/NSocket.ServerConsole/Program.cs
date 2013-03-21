@@ -13,16 +13,22 @@ namespace NSocket.ServerConsole
         static SocketListener listener;
         static void Main(string[] args)
         {
-            listener = new SocketLib.SocketListener(5, 1024, IP);
+            listener = new SocketLib.SocketListener(10, 32768, IP);
             listener.OnMsgReceived += listener_OnMsgReceived;
             listener.OnSended += listener_OnSended;
             listener.StartListenThread += listener_StartListenThread;
+            listener.ClientAccepted += listener_ClientAccepted;
             listener.Init();
             listener.Start(6754);
             //listener.Listen();
 
             Console.WriteLine("Press any key to exit....");
             Console.ReadKey();
+        }
+
+        static void listener_ClientAccepted(string uid)
+        {
+            listener.Send(uid, uid);
         }
 
         static void listener_OnSended(string uid, string exception)
