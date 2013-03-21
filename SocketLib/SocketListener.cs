@@ -88,6 +88,7 @@ namespace SocketLib
         public event SendCompletedHandler OnSended;
 
         public event Action<string> ClientAccepted;
+        private CancellationTokenSource listenCTS;
 
         /// <summary>
         /// 获取当前的并发数
@@ -178,11 +179,15 @@ namespace SocketLib
             }
             this.listenSocket.Listen(100);
             this.StartAccept(null);
+
+            listenCTS = new CancellationTokenSource();
+            //listenThread = new Thread((o) => { Listen(); });
+            //listenThread.Start();
             ThreadPool.QueueUserWorkItem((o) => { Listen(); });
             //开始监听已连接用户的发送数据
             StartListenThread();
             serverstate = ServerState.Running;
-            listenerStopEvent.WaitOne();
+            //listenerStopEvent.WaitOne();
         }
 
         /// <summary>
@@ -192,10 +197,15 @@ namespace SocketLib
         {
             while (true)
             {
+                if (listenCTS.IsCancellationRequested)
+                {
+                    //Cancel listen thread.
+                    return;
+                }
                 string[] keys = readWritePool.OnlineUID;
                 foreach (string uid in keys)
                 {
-                    if (uid != null && readWritePool.busypool[uid].ReceiveSAEA.LastOperation != SocketAsyncOperation.Receive)
+                    if (uid != null && readWritePool.busypool.ContainsKey(uid) && readWritePool.busypool[uid].ReceiveSAEA.LastOperation != SocketAsyncOperation.Receive)
                     {
                         Boolean willRaiseEvent = (readWritePool.busypool[uid].ReceiveSAEA.UserToken as Socket).ReceiveAsync(readWritePool.busypool[uid].ReceiveSAEA);
                         if (!willRaiseEvent)
@@ -267,6 +277,8 @@ namespace SocketLib
         /// </summary>
         public void Stop()
         {
+            this.listenCTS.Cancel();
+
             if (listenSocket != null)
                 listenSocket.Close();
             listenSocket = null;
@@ -316,8 +328,8 @@ namespace SocketLib
         {
             if (e.LastOperation != SocketAsyncOperation.Accept)    //检查上一次操作是否是Accept，不是就返回
                 return;
-            //if (e.BytesTransferred <= 0)    //检查发送的长度是否大于0,不是就返回
-            //    return;
+            if (e.BytesTransferred <= 0)    //检查发送的长度是否大于0,不是就返回
+                return;
 
             //string received = Encoding.Unicode.GetString(e.Buffer, e.Offset, e.BytesTransferred);
             //if (string.Compare(received, ACCEPT_PACKAGE) != 0)
@@ -405,6 +417,8 @@ namespace SocketLib
             this.semaphoreAcceptedClients.Release();
             Interlocked.Decrement(ref this.numConnections);
             this.readWritePool.Push(saeaw);
+            Console.WriteLine("Disconnect {0}", uid);
+
         }
 
         #region IDisposable Members

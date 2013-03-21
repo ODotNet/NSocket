@@ -4,12 +4,12 @@ using System.Net.Sockets;
 
 namespace SocketLib
 {
-    internal sealed class SocketAsyncEventArgsPool:IDisposable
+    internal sealed class SocketAsyncEventArgsPool : IDisposable
     {
         internal Stack<SocketAsyncEventArgsWithId> pool;
         internal IDictionary<string, SocketAsyncEventArgsWithId> busypool;
         private string[] keys;
-        
+
         internal Int32 Count
         {
             get
@@ -62,13 +62,19 @@ namespace SocketLib
                 if (busypool.Keys.Count != 0)
                 {
                     if (busypool.Keys.Contains(item.UID))
-                        busypool.Remove(item.UID);
+                    {
+                        lock (busypool)
+                        {
+                            busypool.Remove(item.UID);
+                        }
+                    }
                     else
                         throw new ArgumentException("SocketAsyncEventWithId不在忙碌队列中");
                 }
                 else
                     throw new ArgumentException("忙碌队列为空");
             }
+
             item.UID = "-1";
             item.State = false;
             lock (this.pool)
@@ -111,7 +117,7 @@ namespace SocketLib
 
         #endregion
     }
-    internal sealed class SocketAsyncEventArgsWithId:IDisposable
+    internal sealed class SocketAsyncEventArgsWithId : IDisposable
     {
         private string uid = "-1";
         private bool state = false;
@@ -127,7 +133,7 @@ namespace SocketLib
                 SendSAEA.UID = value;
             }
         }
-        internal bool State 
+        internal bool State
         {
             get { return state; }
             set { this.state = value; }
@@ -160,10 +166,12 @@ namespace SocketLib
 
         #endregion
     }
-    internal sealed class MySocketAsyncEventArgs : SocketAsyncEventArgs{
+    internal sealed class MySocketAsyncEventArgs : SocketAsyncEventArgs
+    {
         internal string UID;
         private string Property;
-        internal MySocketAsyncEventArgs(string property){
+        internal MySocketAsyncEventArgs(string property)
+        {
             this.Property = property;
         }
     }
