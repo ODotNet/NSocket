@@ -13,7 +13,9 @@ namespace NSocket.PerformanceTest
 {
     public partial class MainForm : Form
     {
-        SocketLib.SocketClient client;
+        private System.Threading.Timer UIUpdateTimer;
+        private Dictionary<string, NSocket.SocketLib.NSocketRebot> Rebots = new Dictionary<string, SocketLib.NSocketRebot>();
+
         public MainForm()
         {
             InitializeComponent();
@@ -23,8 +25,22 @@ namespace NSocket.PerformanceTest
         void MainForm_Load(object sender, EventArgs e)
         {
             this.btnStop.Enabled = false;
+            //this.tbServerIP.Text = "192.168.1.104";
             this.tbServerIP.Text = "127.0.0.1";
             this.tbPort.Text = "7890";
+            this.tbClientNum.Text = "10";
+
+            this.lvClients.View = View.Details;
+            this.lvClients.GridLines = true;
+            this.lvClients.FullRowSelect = true;
+            this.lvClients.Columns.Add("NAME");
+            this.lvClients.Columns.Add("Delay");
+
+            this.lvClients.Columns.Add("Sended(byte)");
+            this.lvClients.Columns.Add("Received(byte)");
+            this.lvClients.Columns.Add("Status");
+
+            UIUpdateTimer = new System.Threading.Timer(UpdateUI, 0, 0, 1000);
         }
 
         private void btnStart_Click(object sender, EventArgs e)
@@ -34,10 +50,19 @@ namespace NSocket.PerformanceTest
             if (int.TryParse(this.tbPort.Text, out port) && port <= 0)
             {
                 MessageBox.Show("Wrong tcp port");
+                return;
+            }
+
+            int clientNums = -1;
+            if (int.TryParse(this.tbClientNum.Text, out clientNums) && clientNums <= 0)
+            {
+                MessageBox.Show("Wrong client nums");
+                return;
             }
             if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
             {
                 MessageBox.Show("Network UnAvailable");
+                return;
             }
 
             IPHostEntry host = Dns.GetHostEntry(tbServerIP.Text);
@@ -46,60 +71,88 @@ namespace NSocket.PerformanceTest
             if (addressList.Length < 1)
             {
                 MessageBox.Show("Didn't found any server");
+                return;
             }
 
-            client = new SocketLib.SocketClient(addressList[addressList.Length - 1], port, 1024);
-            client.StartListenThread += client_StartListenThread;
-            client.OnMsgReceived += client_OnMsgReceived;
-            client.OnSended += client_OnSended;
-            OuputLog(string.Format("Start Connect {0}:{1}", addressList[addressList.Length - 1], port));
-            if (client.Connect())
+            this.Rebots.Clear();//Clear old rebot data.
+            this.lvClients.Items.Clear();//Clear List View Old Rebot Data.
+            ThreadPool.QueueUserWorkItem((o) =>
             {
-                client.Listen();
-                this.btnStop.Enabled = true; //Enable stop button that can stop client.
-            }
-            else
+                for (int i = 0; i < clientNums; i++)
+                {
+                    NSocket.SocketLib.NSocketRebot rebot = new SocketLib.NSocketRebot(addressList[addressList.Length - 1], 7890, 1024);
+                    rebot.Name = "#" + i.ToString();
+                    rebot.SendMessage = "HELLO WORLD";
+                    rebot.Start();
+                    Rebots.Add(rebot.Name, rebot);
+                }
+            });
+            this.btnStop.Enabled = true;
+        }
+
+        private void UpdateUI(object state)
+        {
+            Action updateAction;
+            string[] rebotsKeys = new string[this.Rebots.Count];
+            this.Rebots.Keys.CopyTo(rebotsKeys, 0);
+
+            foreach (var rebotKey in rebotsKeys)
             {
-                OuputLog("Server Connection Failure");
-                this.btnStart.Enabled = true;//Connect Failure, Enable start button to retry.
+                var rebot = this.Rebots[rebotKey];
+                updateAction = () =>
+                      {
+                          if (this.lvClients.Items.ContainsKey(rebot.Name))
+                          {
+                              var item = this.lvClients.Items[rebot.Name];
+
+                              this.lvClients.BeginUpdate();
+                              item.SubItems[0].Text = rebot.Name;
+                              item.SubItems[1].Text = rebot.DelayTime.ToString();
+                              item.SubItems[2].Text = rebot.SendLength.ToString();
+                              item.SubItems[3].Text = rebot.ReceivedLength.ToString();
+                              item.SubItems[4].Text = rebot.Status.ToString();
+                              this.lvClients.EndUpdate();
+                          }
+                          else
+                          {
+
+                              this.lvClients.BeginUpdate();
+                              ListViewItem lvi = new ListViewItem();
+                              lvi.Name = rebot.Name;
+                              lvi.SubItems.Add(rebot.Name);
+                              lvi.SubItems.Add(rebot.DelayTime.ToString());
+                              lvi.SubItems.Add(rebot.SendLength.ToString());
+                              lvi.SubItems.Add(rebot.ReceivedLength.ToString());
+                              lvi.SubItems.Add(rebot.Status.ToString());
+                              this.lvClients.Items.Add(lvi);
+                              this.lvClients.EndUpdate();
+                          }
+                      };
+                UIThreadInvoke(updateAction);
             }
-        }
-
-        private void client_OnSended(bool successorfalse)
-        {
-            //throw new NotImplementedException();
-        }
-
-        private void client_OnMsgReceived(string info)
-        {
-            //throw new NotImplementedException();
-            OuputLog(string.Format("Receveid: {0}", info));
-            //this.client.Send(string.Format("I am {0}", Dns.GetHostName()));
-        }
-
-        private void client_StartListenThread()
-        {
-            OuputLog("Start Listen....");
         }
 
         private void btnStop_Click(object sender, EventArgs e)
         {
-            if (client != null)
+            foreach (var rebot in this.Rebots.Values)
             {
-                OuputLog("Stop Connect....");
-                client.Disconnect();
-                this.btnStart.Enabled = true;
-                this.btnStop.Enabled = false;
+                rebot.Stop();
             }
+
+            this.btnStop.Enabled = false;
+            this.btnStart.Enabled = true;
         }
 
-        void OuputLog(string format, params object[] objs)
+        void UIThreadInvoke(Action action)
         {
-            this.Invoke((MethodInvoker)delegate
-              {
-                  tbLog.AppendText(string.Format(format, objs));
-                  tbLog.AppendText(Environment.NewLine);
-              });
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke((MethodInvoker)delegate { action(); });
+            }
+            else
+            {
+                action();
+            }
         }
     }
 }

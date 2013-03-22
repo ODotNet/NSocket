@@ -12,7 +12,8 @@ namespace NSocket.SocketLib
         private readonly int ReceiveBufferSize;
         private Socket listenSocket;
 
-        public event Action<string> ClientAccepted;
+        public event Action<string> ClientConnected;
+        public event Action<string> clientDisconnected;
 
         private Dictionary<string, ClientItem> Clients;
 
@@ -151,7 +152,7 @@ namespace NSocket.SocketLib
                 ProcessReceive(readEventArgsWithId.ReceiveSAEA);
 
             Clients.Add(UID, readEventArgsWithId);
-            ClientAccepted(UID);
+            ClientConnected(UID);
             this.StartAccept(e);
         }
 

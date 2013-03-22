@@ -58,17 +58,10 @@ namespace NSocket.SocketLib
         private SocketAsyncEventArgs listenerSocketAsyncEventArgs;
 
         public event Action<SocketError> ServerEvent;
+        public event Action<byte[], int, int> DateReceivedEvent;
+        public event Action<byte[], int, int> DataSendedEvent;
 
         private readonly int MESSAGE_BUFFER_SIZE = 1024;
-
-
-        //public SocketClient(String hostName, Int32 port)
-        //{
-        //    IPHostEntry host = Dns.GetHostEntry(hostName);
-        //    IPAddress[] addressList = host.AddressList;
-        //    this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);
-        //    this.clientSocket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-        //}
 
         /// <summary>
         /// 初始化客户端
@@ -147,8 +140,9 @@ namespace NSocket.SocketLib
             {
                 case SocketError.Success:
                     Listen();
-                    string msg = Encoding.Unicode.GetString(e.Buffer, 0, e.BytesTransferred);
-                    OnMsgReceived(msg);
+                    DateReceivedEvent(e.Buffer, e.Offset, e.BytesTransferred);
+                    //string msg = Encoding.Unicode.GetString(e.Buffer, 0, e.BytesTransferred);
+                    //OnMsgReceived(msg);
                     break;
                 default:
                     ServerEvent(e.SocketError);
@@ -162,18 +156,17 @@ namespace NSocket.SocketLib
         /// 发送信息
         /// </summary>
         /// <param name="message"></param>
-        public void Send(String message)
+        public void Send(byte[] sendBuffer)
         {
             if (this.connected)
             {
-                message = String.Format("[length={0}]{1}", message.Length, message);
-                Byte[] sendBuffer = Encoding.Unicode.GetBytes(message);
                 SocketAsyncEventArgs senderSocketAsyncEventArgs = new SocketAsyncEventArgs();
                 senderSocketAsyncEventArgs.UserToken = this.clientSocket;
                 senderSocketAsyncEventArgs.SetBuffer(sendBuffer, 0, sendBuffer.Length);
                 senderSocketAsyncEventArgs.RemoteEndPoint = this.hostEndPoint;
-                senderSocketAsyncEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnSend);
+                senderSocketAsyncEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnSend);                
                 clientSocket.SendAsync(senderSocketAsyncEventArgs);
+                DataSendedEvent(sendBuffer, 0, sendBuffer.Length);
             }
             else
             {

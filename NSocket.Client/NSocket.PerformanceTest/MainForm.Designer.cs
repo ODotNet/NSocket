@@ -31,11 +31,13 @@
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.btnStop = new System.Windows.Forms.Button();
             this.btnStart = new System.Windows.Forms.Button();
+            this.tbServerIP = new System.Windows.Forms.TextBox();
+            this.label2 = new System.Windows.Forms.Label();
             this.tbPort = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
-            this.label2 = new System.Windows.Forms.Label();
-            this.tbServerIP = new System.Windows.Forms.TextBox();
-            this.tbLog = new System.Windows.Forms.RichTextBox();
+            this.lvClients = new System.Windows.Forms.ListView();
+            this.label3 = new System.Windows.Forms.Label();
+            this.tbClientNum = new System.Windows.Forms.TextBox();
             this.groupBox1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -45,11 +47,13 @@
             this.groupBox1.Controls.Add(this.btnStart);
             this.groupBox1.Controls.Add(this.tbServerIP);
             this.groupBox1.Controls.Add(this.label2);
+            this.groupBox1.Controls.Add(this.tbClientNum);
+            this.groupBox1.Controls.Add(this.label3);
             this.groupBox1.Controls.Add(this.tbPort);
             this.groupBox1.Controls.Add(this.label1);
             this.groupBox1.Location = new System.Drawing.Point(12, 12);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(503, 52);
+            this.groupBox1.Size = new System.Drawing.Size(671, 52);
             this.groupBox1.TabIndex = 4;
             this.groupBox1.TabStop = false;
             // 
@@ -73,6 +77,22 @@
             this.btnStart.UseVisualStyleBackColor = true;
             this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
             // 
+            // tbServerIP
+            // 
+            this.tbServerIP.Location = new System.Drawing.Point(77, 19);
+            this.tbServerIP.Name = "tbServerIP";
+            this.tbServerIP.Size = new System.Drawing.Size(100, 21);
+            this.tbServerIP.TabIndex = 2;
+            // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Location = new System.Drawing.Point(12, 23);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(59, 12);
+            this.label2.TabIndex = 1;
+            this.label2.Text = "Server IP";
+            // 
             // tbPort
             // 
             this.tbPort.Location = new System.Drawing.Point(227, 19);
@@ -89,36 +109,36 @@
             this.label1.TabIndex = 1;
             this.label1.Text = "PORT";
             // 
-            // label2
+            // lvClients
             // 
-            this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(12, 23);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(59, 12);
-            this.label2.TabIndex = 1;
-            this.label2.Text = "Server IP";
+            this.lvClients.Location = new System.Drawing.Point(12, 80);
+            this.lvClients.Name = "lvClients";
+            this.lvClients.Size = new System.Drawing.Size(503, 564);
+            this.lvClients.TabIndex = 5;
+            this.lvClients.UseCompatibleStateImageBehavior = false;
             // 
-            // tbServerIP
+            // label3
             // 
-            this.tbServerIP.Location = new System.Drawing.Point(77, 19);
-            this.tbServerIP.Name = "tbServerIP";
-            this.tbServerIP.Size = new System.Drawing.Size(100, 21);
-            this.tbServerIP.TabIndex = 2;
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(503, 24);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(41, 12);
+            this.label3.TabIndex = 1;
+            this.label3.Text = "Client";
             // 
-            // tbLog
+            // tbClientNum
             // 
-            this.tbLog.Location = new System.Drawing.Point(13, 71);
-            this.tbLog.Name = "tbLog";
-            this.tbLog.Size = new System.Drawing.Size(502, 482);
-            this.tbLog.TabIndex = 5;
-            this.tbLog.Text = "";
+            this.tbClientNum.Location = new System.Drawing.Point(561, 21);
+            this.tbClientNum.Name = "tbClientNum";
+            this.tbClientNum.Size = new System.Drawing.Size(65, 21);
+            this.tbClientNum.TabIndex = 2;
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(526, 565);
-            this.Controls.Add(this.tbLog);
+            this.ClientSize = new System.Drawing.Size(695, 656);
+            this.Controls.Add(this.lvClients);
             this.Controls.Add(this.groupBox1);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D;
             this.Name = "MainForm";
@@ -138,7 +158,9 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.TextBox tbPort;
         private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.RichTextBox tbLog;
+        private System.Windows.Forms.ListView lvClients;
+        private System.Windows.Forms.TextBox tbClientNum;
+        private System.Windows.Forms.Label label3;
 
     }
 }

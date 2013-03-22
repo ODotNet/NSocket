@@ -47,7 +47,7 @@ namespace NSocket.ServerMonitor
                     listener.OnMsgReceived += listener_OnMsgReceived;
                     //listener.OnSended += listener_OnSended;
                     //listener.StartListenThread += listener_StartListenThread;
-                    listener.ClientAccepted += listener_ClientAccepted;
+                    listener.ClientConnected += listener_ClientAccepted;
                     listener.Init();
                     listener.Start(port);
                 });

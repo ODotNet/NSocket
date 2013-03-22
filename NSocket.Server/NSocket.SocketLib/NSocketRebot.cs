@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 
 namespace NSocket.SocketLib
 {
@@ -30,22 +31,55 @@ namespace NSocket.SocketLib
             }
         }
 
+        private int receivedLength = 0;
+        public int ReceivedLength
+        {
+            get { return receivedLength; }
+        }
+
+        private int sendLength = 0;
+        public int SendLength
+        {
+            get { return sendLength; }
+        }
+
         /// <summary>
         /// Socket Client
         /// </summary>
         SocketClient client;
 
-        public string SendMessage { get; set; }
+        System.Diagnostics.Stopwatch PerformanceWatch;
 
-        private System.Threading.Timer AutoRunTimer;
+        AutoResetEvent AutoSendEvent;
+
+        public string SendMessage { get; set; }
 
         public NSocketRebot(IPAddress serverAddress, int port, int messageBuffer)
         {
             client = new SocketClient(serverAddress, port, messageBuffer);
-            client.OnMsgReceived += client_OnMsgReceived;
+            client.DateReceivedEvent += client_DateReceivedEvent;
+            client.DataSendedEvent += client_DataSendedEvent;
             client.ServerEvent += client_ServerEvent;
             client.OnSended += client_OnSended;
             this.Status = NSocketRebotStatus.Stop;
+            this.PerformanceWatch = new System.Diagnostics.Stopwatch();
+            this.AutoSendEvent = new AutoResetEvent(false);
+        }
+
+        void client_DataSendedEvent(byte[] data, int offSet, int length)
+        {
+            this.sendLength += length;
+            Console.WriteLine("Receive:{0}", length);
+        }
+
+        void client_DateReceivedEvent(byte[] data, int offSet, int length)
+        {
+            PerformanceWatch.Stop();
+            this.DelayTime = PerformanceWatch.ElapsedMilliseconds;
+            //AutoSendEvent.Set();
+            Console.WriteLine("Relase one handle");
+            this.receivedLength += length;
+            Console.WriteLine("Send:{0}", length);
         }
 
         void client_OnSended(bool successorfalse)
@@ -56,19 +90,17 @@ namespace NSocket.SocketLib
         void client_ServerEvent(System.Net.Sockets.SocketError obj)
         {
             this.Status = NSocketRebotStatus.Error;
-            if (obj == System.Net.Sockets.SocketError.ConnectionReset)
+            if (obj == System.Net.Sockets.SocketError.ConnectionReset
+                || obj == System.Net.Sockets.SocketError.OperationAborted
+                )
             {
                 Console.WriteLine("Server Stoped");
+                this.Status = NSocketRebotStatus.Stop;
             }
             else
             {
                 Console.WriteLine(obj.ToString());
             }
-        }
-
-        void client_OnMsgReceived(string message)
-        {
-            Console.WriteLine("{0}:{1}", this.Name, message);
         }
 
         public void Start()
@@ -77,7 +109,10 @@ namespace NSocket.SocketLib
             {
                 this.Status = NSocketRebotStatus.Running;
                 client.Listen();//Start listen server's response.
-                AutoRun();//Start run
+                ThreadPool.QueueUserWorkItem((o) =>
+                {
+                    AutoRun();//Start run
+                });
             }
             else
             {
@@ -89,7 +124,6 @@ namespace NSocket.SocketLib
         {
             this.Status = NSocketRebotStatus.Stop;
             this.client.Disconnect();
-            AutoRunTimer.Change(0, 0);
         }
 
         /// <summary>
@@ -97,12 +131,30 @@ namespace NSocket.SocketLib
         /// </summary>
         private void AutoRun()
         {
-            AutoRunTimer = new System.Threading.Timer((o) =>
-              {
-                  if (this.Status == NSocketRebotStatus.Running)
-                      this.client.Send(SendMessage);
-              }, null, 0, 200);
+            while (true)
+            {
+                Console.WriteLine("Start Wait...");
+                if (this.Status == NSocketRebotStatus.Running)
+                {
+                    Console.WriteLine("Get One handle");
+                    this.PerformanceWatch.Restart();
+                    var message = "HELLO WORLD";
+                    message = String.Format("[length={0}]{1}", message.Length, message);
+                    Byte[] sendBuffer = Encoding.Unicode.GetBytes(message);
+                    this.client.Send(sendBuffer);
+                }
+                else if (this.Status == NSocketRebotStatus.Stop)
+                {
+                    return;
+                }
+                else
+                {
+                    //AutoSendEvent.Set();
+                }
+            }
         }
+
+        public long DelayTime { get; private set; }
     }
 
     public enum NSocketRebotStatus
