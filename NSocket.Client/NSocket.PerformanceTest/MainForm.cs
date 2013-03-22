@@ -48,16 +48,14 @@ namespace NSocket.PerformanceTest
                 MessageBox.Show("Didn't found any server");
             }
 
-            client = new SocketLib.SocketClient(addressList[addressList.Length - 1], port);
+            client = new SocketLib.SocketClient(addressList[addressList.Length - 1], port, 1024);
             client.StartListenThread += client_StartListenThread;
             client.OnMsgReceived += client_OnMsgReceived;
             client.OnSended += client_OnSended;
             OuputLog(string.Format("Start Connect {0}:{1}", addressList[addressList.Length - 1], port));
             if (client.Connect())
             {
-                OuputLog("Connected");
-                OuputLog("Start Listening...");
-                ThreadPool.QueueUserWorkItem((o) => { client.Listen(); });
+                client.Listen();
                 this.btnStop.Enabled = true; //Enable stop button that can stop client.
             }
             else
@@ -76,6 +74,7 @@ namespace NSocket.PerformanceTest
         {
             //throw new NotImplementedException();
             OuputLog(string.Format("Receveid: {0}", info));
+            //this.client.Send(string.Format("I am {0}", Dns.GetHostName()));
         }
 
         private void client_StartListenThread()

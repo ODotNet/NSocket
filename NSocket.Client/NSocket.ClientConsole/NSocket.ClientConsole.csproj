@@ -45,9 +45,9 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\SocketLib\SocketLib.csproj">
-      <Project>{b931780f-450b-4a94-afa7-3d71292d8734}</Project>
-      <Name>SocketLib</Name>
+    <ProjectReference Include="..\..\NSocket.Server\NSocket.SocketLib\NSocket.SocketLib.csproj">
+      <Project>{bf02552a-5061-4650-9a26-c8d9f7a97f14}</Project>
+      <Name>NSocket.SocketLib</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

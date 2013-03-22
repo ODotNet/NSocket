@@ -1,11 +1,5 @@
-﻿using SocketLib;
+﻿using NSocket.SocketLib;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -14,6 +8,7 @@ namespace NSocket.ServerMonitor
     public partial class MainForm : Form
     {
         SocketListener listener;
+        System.Threading.Timer listenerMonitorTimer;
         public MainForm()
         {
             InitializeComponent();
@@ -24,6 +19,19 @@ namespace NSocket.ServerMonitor
         {
             this.btnStop.Enabled = false;
             this.tbPort.Text = "7890";
+            this.listenerMonitorTimer = new System.Threading.Timer(ListenerMonitorHandler, null, 0, 500);
+        }
+
+        private void ListenerMonitorHandler(object o)
+        {
+            if (listener != null)
+            {
+                Action action = () =>
+                {
+                    this.tbOnlineUsers.Text = this.listener.OnlineClients.Count.ToString();
+                };
+                UIThreadInvoke(action);
+            }
         }
 
         private void btnStart_Click(object sender, EventArgs e)
@@ -33,15 +41,16 @@ namespace NSocket.ServerMonitor
             {
                 btnStart.Enabled = false;
                 btnStop.Enabled = true;
-
-                listener = new SocketLib.SocketListener(3, 32768, (p) => { return p; });
-                listener.OnMsgReceived += listener_OnMsgReceived;
-                listener.OnSended += listener_OnSended;
-                listener.StartListenThread += listener_StartListenThread;
-                listener.ClientAccepted += listener_ClientAccepted;
-                listener.Init();
-                listener.Start(6754);
-                OutputLog(string.Format("Start Listenning..."));
+                ThreadPool.QueueUserWorkItem((o) =>
+                {
+                    listener = new SocketListener(1024);
+                    listener.OnMsgReceived += listener_OnMsgReceived;
+                    //listener.OnSended += listener_OnSended;
+                    //listener.StartListenThread += listener_StartListenThread;
+                    listener.ClientAccepted += listener_ClientAccepted;
+                    listener.Init();
+                    listener.Start(port);
+                });
             }
             else
             {
@@ -62,7 +71,7 @@ namespace NSocket.ServerMonitor
 
         void listener_OnMsgReceived(string uid, string info)
         {
-            OutputLog(string.Format("Received:{0} {1}", uid, info));
+            //OutputLog(string.Format("Received:{0} {1}", uid, info));
             listener.Send(uid, info);
         }
 
@@ -89,17 +98,24 @@ namespace NSocket.ServerMonitor
                 txtLog.AppendText(Environment.NewLine);
             };
 
+            UIThreadInvoke(outputAction);
+        }
+
+        void UIThreadInvoke(Action action)
+        {
             if (this.InvokeRequired)
             {
-                this.BeginInvoke((MethodInvoker)delegate
-                  {
-                      outputAction();
-                  });
+                this.BeginInvoke((MethodInvoker)delegate { action(); });
             }
             else
             {
-                outputAction();
+                action();
             }
+        }
+
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            listener.Stop();
         }
     }
 }

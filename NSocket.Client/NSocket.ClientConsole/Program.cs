@@ -12,41 +12,17 @@ namespace NSocket.ClientConsole
         {
             IPHostEntry host = Dns.GetHostEntry("localhost");
             IPAddress[] addressList = host.AddressList;
-            SocketLib.SocketClient client = new SocketLib.SocketClient(addressList[addressList.Length - 1], 6754);
-            client.StartListenThread += client_StartListenThread;
-            client.OnMsgReceived += client_OnMsgReceived;
-            client.OnSended += client_OnSended;
-        RETRY:
-            if (client.Connect())
+
+            for (int i = 0; i < 100; i++)
             {
-                client.Listen();
-                string cmd = string.Empty;
-                while ((cmd = Console.ReadLine().Trim()) != "Q")
-                {
-                    client.Send(cmd);
-                }
+                NSocket.SocketLib.NSocketRebot rebot = new SocketLib.NSocketRebot(addressList[addressList.Length - 1], 7890, 1024);
+                rebot.Name = "#" + i.ToString();
+                rebot.SendMessage = "HELLO WORLD";
+                rebot.Start();
             }
-            else
-            {
-                Console.WriteLine("Server Connection Failure");
-                Console.ReadKey();
-                goto RETRY;
-            }
-        }
 
-        static void client_OnSended(bool successorfalse)
-        {
-            Console.WriteLine(successorfalse);
-        }
-
-        static void client_OnMsgReceived(string info)
-        {
-            Console.WriteLine(info);
-        }
-
-        static void client_StartListenThread()
-        {
-            Console.WriteLine("Client start listenning...");
+            Console.WriteLine("Press any key to exit");
+            Console.ReadKey();
         }
     }
 }

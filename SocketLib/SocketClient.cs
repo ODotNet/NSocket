@@ -84,7 +84,7 @@ namespace SocketLib
 
             connectArgs.UserToken = this.clientSocket;
             connectArgs.RemoteEndPoint = this.hostEndPoint;
-            byte[] connectBuffer = new byte[32768];
+            byte[] connectBuffer = new byte[1024];
             connectArgs.SetBuffer(connectBuffer, 0, connectBuffer.Length);
             connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
             clientSocket.ConnectAsync(connectArgs);
@@ -94,7 +94,7 @@ namespace SocketLib
             if (errorCode == SocketError.Success)
             {
                 listenerSocketAsyncEventArgs = new SocketAsyncEventArgs();
-                byte[] receiveBuffer = new byte[32768];
+                byte[] receiveBuffer = new byte[1024];
                 listenerSocketAsyncEventArgs.UserToken = clientSocket;
                 listenerSocketAsyncEventArgs.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
                 listenerSocketAsyncEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceive);
@@ -144,8 +144,15 @@ namespace SocketLib
         /// </summary>
         public void Disconnect()
         {
-            clientSocket.Disconnect(false);
+            this.connected = false;
+            clientSocket.Close();
             clientSocket.Dispose();
+            //clientSocket.DisconnectAsync(new SocketAsyncEventArgs());
+            //clientSocket.Dispose();
+
+            //clientSocket.Close();
+            //clientSocket.Disconnect(false);
+            //clientSocket.Dispose();
         }
 
 
@@ -166,6 +173,7 @@ namespace SocketLib
         /// <param name="e"></param>
         private void OnReceive(object sender, SocketAsyncEventArgs e)
         {
+            //OnMsgReceived(string.Format("Server COMMAND: {0}", e.SocketError.ToString()));
             switch (e.SocketError)
             {
                 case SocketError.AccessDenied:
@@ -179,6 +187,7 @@ namespace SocketLib
                 case SocketError.AlreadyInProgress:
                     break;
                 case SocketError.ConnectionAborted:
+                    Console.WriteLine("Connection Aborted");
                     break;
                 case SocketError.ConnectionRefused:
                     break;

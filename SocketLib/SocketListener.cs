@@ -8,7 +8,7 @@ using System.Threading;
 
 namespace SocketLib
 {
-    public sealed class SocketListener : IDisposable
+    public sealed partial class SocketListener : IDisposable
     {
         /// <summary>
         /// 缓冲区
@@ -190,30 +190,7 @@ namespace SocketLib
             //listenerStopEvent.WaitOne();
         }
 
-        /// <summary>
-        /// 开始监听线程的入口函数
-        /// </summary>
-        private void Listen()
-        {
-            while (true)
-            {
-                if (listenCTS.IsCancellationRequested)
-                {
-                    //Cancel listen thread.
-                    return;
-                }
-                string[] keys = readWritePool.OnlineUID;
-                foreach (string uid in keys)
-                {
-                    if (uid != null && readWritePool.busypool.ContainsKey(uid) && readWritePool.busypool[uid].ReceiveSAEA.LastOperation != SocketAsyncOperation.Receive)
-                    {
-                        Boolean willRaiseEvent = (readWritePool.busypool[uid].ReceiveSAEA.UserToken as Socket).ReceiveAsync(readWritePool.busypool[uid].ReceiveSAEA);
-                        if (!willRaiseEvent)
-                            ProcessReceive(readWritePool.busypool[uid].ReceiveSAEA);
-                    }
-                }
-            }
-        }
+
 
         /// <summary>
         /// 发送信息
@@ -302,7 +279,7 @@ namespace SocketLib
             }
             else
                 acceptEventArg.AcceptSocket = null;
-            this.semaphoreAcceptedClients.WaitOne();//这个有啥用?
+            this.semaphoreAcceptedClients.WaitOne();//控制服务器端总链接,但是即使达到链接的上限，Socket还是会接收Client Connect, 一旦有Client Disconnect, 之前排队的就会丢失.
             Boolean willRaiseEvent = this.listenSocket.AcceptAsync(acceptEventArg);
             if (!willRaiseEvent)
             {
@@ -343,46 +320,20 @@ namespace SocketLib
             //    return;
             //if (readWritePool.BusyPoolContains(UID))    //判断现在的用户是否已经连接，避免同一用户开两个连接
             //    return;
-            SocketAsyncEventArgsWithId readEventArgsWithId = this.readWritePool.Pop(UID);
+            SocketAsyncEventArgsWithId readEventArgsWithId = this.readWritePool.Pop(UID);//Get an idle SAEA from idle pool.
             readEventArgsWithId.ReceiveSAEA.UserToken = e.AcceptSocket;
             readEventArgsWithId.SendSAEA.UserToken = e.AcceptSocket;
-            Interlocked.Increment(ref this.numConnections);
+            Interlocked.Increment(ref this.numConnections);//Increment current connection value.
             ClientAccepted(UID);
             this.StartAccept(e);
         }
 
-        private void OnReceiveCompleted(object sender, SocketAsyncEventArgs e)
-        {
-            ProcessReceive(e);
-        }
+
         private void OnSendCompleted(object sender, SocketAsyncEventArgs e)
         {
             ProcessSend(e);
         }
-        private void ProcessReceive(SocketAsyncEventArgs e)
-        {
-            if (e.LastOperation != SocketAsyncOperation.Receive)
-                return;
-            if (e.BytesTransferred > 0)
-            {
-                if (e.SocketError == SocketError.Success)
-                {
-                    Int32 byteTransferred = e.BytesTransferred;
-                    string received = Encoding.Unicode.GetString(e.Buffer, e.Offset, byteTransferred);
-                    //检查消息的准确性
-                    string[] msg = handler.GetActualString(received);
-                    foreach (string m in msg)
-                        OnMsgReceived(((MySocketAsyncEventArgs)e).UID, m);
-                    //可以在这里设一个停顿来实现间隔时间段监听，这里的停顿是单个用户间的监听间隔
-                    //发送一个异步接受请求，并获取请求是否为成功
-                    Boolean willRaiseEvent = (e.UserToken as Socket).ReceiveAsync(e);
-                    if (!willRaiseEvent)
-                        ProcessReceive(e);
-                }
-            }
-            else
-                this.CloseClientSocket(((MySocketAsyncEventArgs)e).UID);
-        }
+
         private void ProcessSend(SocketAsyncEventArgs e)
         {
             if (e.LastOperation != SocketAsyncOperation.Send)
@@ -406,9 +357,13 @@ namespace SocketLib
             if (saeaw == null)
                 return;
             Socket s = saeaw.ReceiveSAEA.UserToken as Socket;
+            //此处为何只关闭Receive, 而不关闭Send?
             try
             {
+                //s.Shutdown(SocketShutdown.Both);
+                s.Disconnect(false);
                 s.Shutdown(SocketShutdown.Both);
+                saeaw.Dispose();//SAEA销毁
             }
             catch (Exception)
             {
