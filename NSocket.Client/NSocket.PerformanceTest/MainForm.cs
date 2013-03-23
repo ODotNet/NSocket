@@ -33,13 +33,18 @@ namespace NSocket.PerformanceTest
             this.lvClients.View = View.Details;
             this.lvClients.GridLines = true;
             this.lvClients.FullRowSelect = true;
-            this.lvClients.Columns.Add("NAME");
-            this.lvClients.Columns.Add("Delay");
+            this.lvClients.Columns.Add("", 0);
+            this.lvClients.Columns.Add("NAME", 100);
+            this.lvClients.Columns.Add("Delay", 100);
 
-            this.lvClients.Columns.Add("Sended(byte)");
-            this.lvClients.Columns.Add("Received(byte)");
-            this.lvClients.Columns.Add("Status");
-
+            this.lvClients.Columns.Add("Sended(byte)", 100);
+            this.lvClients.Columns.Add("Received(byte)", 100);
+            this.lvClients.Columns.Add("WorkStatus", 100);
+            this.lvClients.Columns.Add("ConnStatus", 100);
+            this.lvClients.Columns.Add("Success Send", 100);
+            this.lvClients.Columns.Add("Failure Send", 100);
+            this.lvClients.Columns.Add("RecTimes", 100);
+            this.lvClients.Columns.Add("ConnTimes", 100);
             UIUpdateTimer = new System.Threading.Timer(UpdateUI, 0, 0, 1000);
         }
 
@@ -106,25 +111,37 @@ namespace NSocket.PerformanceTest
                               var item = this.lvClients.Items[rebot.Name];
 
                               this.lvClients.BeginUpdate();
-                              item.SubItems[0].Text = rebot.Name;
-                              item.SubItems[1].Text = rebot.DelayTime.ToString();
-                              item.SubItems[2].Text = rebot.SendLength.ToString();
-                              item.SubItems[3].Text = rebot.ReceivedLength.ToString();
-                              item.SubItems[4].Text = rebot.Status.ToString();
+                              //item.SubItems[1].Text = rebot.Name;
+                              item.SubItems[2].Text = rebot.DelayTime.ToString();
+                              item.SubItems[3].Text = rebot.SendLength.ToString();
+                              item.SubItems[4].Text = rebot.ReceivedLength.ToString();
+                              item.SubItems[5].Text = rebot.WorkStatus.ToString();
+                              item.SubItems[6].Text = rebot.ConnectStatus.ToString();
+                              item.SubItems[7].Text = rebot.SendSuccessTimes.ToString();
+                              item.SubItems[8].Text = rebot.SendFailureTimes.ToString();
+                              item.SubItems[9].Text = rebot.ReceivedTimes.ToString();
+                              item.SubItems[10].Text = rebot.TryConnectTimes.ToString();
                               this.lvClients.EndUpdate();
                           }
                           else
                           {
 
                               this.lvClients.BeginUpdate();
-                              ListViewItem lvi = new ListViewItem();
-                              lvi.Name = rebot.Name;
-                              lvi.SubItems.Add(rebot.Name);
-                              lvi.SubItems.Add(rebot.DelayTime.ToString());
-                              lvi.SubItems.Add(rebot.SendLength.ToString());
-                              lvi.SubItems.Add(rebot.ReceivedLength.ToString());
-                              lvi.SubItems.Add(rebot.Status.ToString());
-                              this.lvClients.Items.Add(lvi);
+                              ListViewItem item = new ListViewItem();
+                              item.Name = rebot.Name;
+                              item.SubItems.AddRange(new string[] { 
+                                  rebot.Name, 
+                                  rebot.DelayTime.ToString(), 
+                                  rebot.SendLength.ToString(), 
+                                  rebot.ReceivedLength.ToString(), 
+                                  rebot.WorkStatus.ToString(),
+                                  rebot.ConnectStatus.ToString(), 
+                                  rebot.SendSuccessTimes.ToString(),
+                                  rebot.SendFailureTimes.ToString(),
+                                  rebot.ReceivedTimes.ToString(),
+                                  rebot.TryConnectTimes.ToString()
+                              });
+                              this.lvClients.Items.Add(item);
                               this.lvClients.EndUpdate();
                           }
                       };

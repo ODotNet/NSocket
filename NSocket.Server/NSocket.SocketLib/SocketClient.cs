@@ -17,7 +17,7 @@ namespace NSocket.SocketLib
         /// <summary>
         /// 连接状态
         /// </summary>
-        private Boolean connected = false;
+        public Boolean Connected { get { return this.clientSocket.Connected; } }
         /// <summary>
         /// 连接点
         /// </summary>
@@ -72,7 +72,6 @@ namespace NSocket.SocketLib
         {
             this.MESSAGE_BUFFER_SIZE = messageBuffer;
             this.hostEndPoint = new IPEndPoint(address, port);
-            this.clientSocket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         }
 
         #region Connect
@@ -82,8 +81,10 @@ namespace NSocket.SocketLib
         /// </summary>
         public bool Connect()
         {
+            if (this.clientSocket != null)
+                this.clientSocket.Dispose();//Destroy old socket when reconnect.
+            this.clientSocket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             SocketAsyncEventArgs connectArgs = new SocketAsyncEventArgs();
-
             connectArgs.UserToken = this.clientSocket;
             connectArgs.RemoteEndPoint = this.hostEndPoint;
             byte[] connectBuffer = new byte[MESSAGE_BUFFER_SIZE];
@@ -91,15 +92,15 @@ namespace NSocket.SocketLib
             connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
             clientSocket.ConnectAsync(connectArgs);
 
-            autoConnectEvent.WaitOne();//Waiting for the connect result.
-            SocketError errorCode = connectArgs.SocketError;
-            if (errorCode == SocketError.Success)
+            autoConnectEvent.WaitOne(1000);//Waiting for the connect result.
+            if (connectArgs.SocketError == SocketError.Success && this.clientSocket.Connected)
             {
                 listenerSocketAsyncEventArgs = new SocketAsyncEventArgs();
                 byte[] receiveBuffer = new byte[MESSAGE_BUFFER_SIZE];
                 listenerSocketAsyncEventArgs.UserToken = clientSocket;
                 listenerSocketAsyncEventArgs.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
                 listenerSocketAsyncEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceive);
+                Listen();
                 return true;
             }
             else
@@ -114,7 +115,6 @@ namespace NSocket.SocketLib
         private void OnConnect(object sender, SocketAsyncEventArgs e)
         {
             autoConnectEvent.Set();
-            this.connected = (e.SocketError == SocketError.Success);
         }
 
         #endregion
@@ -158,19 +158,20 @@ namespace NSocket.SocketLib
         /// <param name="message"></param>
         public void Send(byte[] sendBuffer)
         {
-            if (this.connected)
+            if (this.Connected)
             {
                 SocketAsyncEventArgs senderSocketAsyncEventArgs = new SocketAsyncEventArgs();
                 senderSocketAsyncEventArgs.UserToken = this.clientSocket;
                 senderSocketAsyncEventArgs.SetBuffer(sendBuffer, 0, sendBuffer.Length);
                 senderSocketAsyncEventArgs.RemoteEndPoint = this.hostEndPoint;
-                senderSocketAsyncEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnSend);                
+                senderSocketAsyncEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnSend);
                 clientSocket.SendAsync(senderSocketAsyncEventArgs);
                 DataSendedEvent(sendBuffer, 0, sendBuffer.Length);
             }
             else
             {
-                throw new SocketException((Int32)SocketError.NotConnected);
+                OnSended(false);
+                //throw new SocketException((Int32)SocketError.NotConnected);
             }
         }
 
@@ -199,7 +200,6 @@ namespace NSocket.SocketLib
         /// </summary>
         public void Disconnect()
         {
-            this.connected = false;
             clientSocket.Close();
             clientSocket.Dispose();
         }

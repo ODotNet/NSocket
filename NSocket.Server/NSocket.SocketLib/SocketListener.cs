@@ -194,7 +194,7 @@ namespace NSocket.SocketLib
                     }
                 }
             }
-            else if (e.SocketError == SocketError.OperationAborted)
+            else if (e.SocketError == SocketError.OperationAborted || e.SocketError == SocketError.ConnectionAborted)
             {
                 Console.WriteLine("Client Socket Aborted");
             }
@@ -284,7 +284,7 @@ namespace NSocket.SocketLib
             {
                 s.Close();//Tell client(Client will received a ConnectionReset error);
                 if (s.Connected) //If raised by server, need to discount client socket first.
-                    s.Disconnect(false);
+                    s.Disconnect(true);
 
                 s.Shutdown(SocketShutdown.Both);
                 s.Dispose();
@@ -307,12 +307,14 @@ namespace NSocket.SocketLib
         /// </summary>
         public void Stop()
         {
-            foreach (var client in this.Clients.Values)
+            string[] clientKeys = new string[this.Clients.Count];
+            this.Clients.Keys.CopyTo(clientKeys, 0);
+            foreach (var client in clientKeys)
             {
 
                 //(client.ReceiveSAEA.UserToken as Socket).Disconnect(false);
                 //client.Dispose();
-                CloseClientSocket(client.UID);
+                CloseClientSocket(client);
             }
 
             if (listenSocket != null)
