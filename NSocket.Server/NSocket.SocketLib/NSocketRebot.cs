@@ -89,6 +89,10 @@ namespace NSocket.SocketLib
         {
             get { return tryConnectTimesSinceLastTime; }
         }
+
+        public long ConnectDelay { get; private set; }
+        public long DelayTime { get; private set; }
+        public int WorkThreadID { get; private set; }
         #endregion
 
         /// <summary>
@@ -99,6 +103,7 @@ namespace NSocket.SocketLib
         System.Diagnostics.Stopwatch PerformanceWatch;
 
         AutoResetEvent AutoSendEvent;
+        private Thread WorkThread;
 
         public string SendMessage { get; set; }
 
@@ -109,16 +114,21 @@ namespace NSocket.SocketLib
             client.DataSendedEvent += client_DataSendedEvent;
             client.ServerEvent += client_ServerEvent;
             client.OnSended += client_OnSended;
+            client.ServerStop += client_ServerStop;//收到Server Disconnect
             this.WorkStatus = NSocketRebotWorkStatus.Stop;
             this.PerformanceWatch = new System.Diagnostics.Stopwatch();
             this.AutoSendEvent = new AutoResetEvent(false);
+        }
+
+        void client_ServerStop()
+        {
+            this.ConnectStatus = NSocketRebotConnectStatus.NotConnected;
         }
 
         void client_DataSendedEvent(byte[] data, int offSet, int length)
         {
             System.Threading.Interlocked.Increment(ref this.sendTimes);
             this.sendLength += length;
-            Console.WriteLine("Receive:{0}", length);
         }
 
         void client_DateReceivedEvent(byte[] data, int offSet, int length)
@@ -126,10 +136,7 @@ namespace NSocket.SocketLib
             PerformanceWatch.Stop();
             System.Threading.Interlocked.Increment(ref this.receivedTimes);
             this.DelayTime = PerformanceWatch.ElapsedMilliseconds;
-            //AutoSendEvent.Set();
-            Console.WriteLine("Relase one handle");
             this.receivedLength += length;
-            Console.WriteLine("Send:{0}", length);
         }
 
         void client_OnSended(bool successorfalse)
@@ -141,6 +148,7 @@ namespace NSocket.SocketLib
             else
             {
                 System.Threading.Interlocked.Increment(ref this.sendFailureTimes);
+                this.ConnectStatus = NSocketRebotConnectStatus.ConnectingFailure;//只要一次发送失败，就断定为Lost Connection, 使Rebot重新连接
             }
         }
 
@@ -150,7 +158,6 @@ namespace NSocket.SocketLib
                 || obj == System.Net.Sockets.SocketError.OperationAborted
                 )
             {
-                Console.WriteLine("Server Stoped");
                 this.ConnectStatus = NSocketRebotConnectStatus.NotConnected;
             }
             else
@@ -161,33 +168,40 @@ namespace NSocket.SocketLib
 
         public void Start()
         {
-            ThreadPool.QueueUserWorkItem((o) =>
+            this.tryConnectTimesSinceLastTime = 0;
+
+            this.WorkThread = new Thread(() =>
             {
                 this.WorkStatus = NSocketRebotWorkStatus.Running;
                 AutoRun();//Start run
             });
+            this.WorkThread.Start();
         }
 
         private void TryConnect()
         {
             this.ConnectStatus = NSocketRebotConnectStatus.Connecting;
-            System.Threading.Interlocked.Increment(ref this.tryConnectTimesSinceLastTime);
+            this.tryConnectTimesSinceLastTime++;
+            this.PerformanceWatch.Restart();
             if (client.Connect())
             {
+                this.PerformanceWatch.Stop();
+                this.ConnectDelay = this.PerformanceWatch.ElapsedMilliseconds;
                 this.ConnectStatus = NSocketRebotConnectStatus.Connected;
-                System.Threading.Interlocked.Exchange(ref this.tryConnectTimesSinceLastTime, 0);
             }
             else
             {
                 this.ConnectStatus = NSocketRebotConnectStatus.ConnectingFailure;
+                Thread.Sleep(1000);
             }
         }
 
         public void Stop()
         {
+            this.WorkThread.Abort();
             this.WorkStatus = NSocketRebotWorkStatus.Stop;
             this.ConnectStatus = NSocketRebotConnectStatus.NotConnected;
-            this.client.Disconnect();
+            this.client.Disconnect();//主动发起 Diconnect
         }
 
         /// <summary>
@@ -197,6 +211,7 @@ namespace NSocket.SocketLib
         {
             while (true)
             {
+                this.WorkThreadID = Thread.CurrentThread.ManagedThreadId;
                 if (this.WorkStatus == NSocketRebotWorkStatus.Running)
                 {
                     if (IsServerConnectRequired())
@@ -205,15 +220,14 @@ namespace NSocket.SocketLib
                     }
                     else
                     {
-                        Console.WriteLine("Get One handle");
                         this.PerformanceWatch.Restart();
                         var message = "HELLO WORLD";
                         message = String.Format("[length={0}]{1}", message.Length, message);
                         Byte[] sendBuffer = Encoding.Unicode.GetBytes(message);
                         this.client.Send(sendBuffer);
+                        Thread.Sleep(2000);
                     }
                 }
-                Thread.Sleep(1000);
             }
         }
 
@@ -221,8 +235,6 @@ namespace NSocket.SocketLib
         {
             return this.ConnectStatus == NSocketRebotConnectStatus.ConnectingFailure || this.ConnectStatus == NSocketRebotConnectStatus.NotConnected;
         }
-
-        public long DelayTime { get; private set; }
     }
 
     public enum NSocketRebotWorkStatus

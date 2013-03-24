@@ -10,5 +10,17 @@ namespace NSocket.SocketLib
         {
             this.Property = property;
         }
+
+        public Socket Socket
+        {
+            get
+            {
+                return this.UserToken as Socket;
+            }
+            set
+            {
+                this.UserToken = value;
+            }
+        }
     }
 }

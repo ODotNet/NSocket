@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 
 namespace NSocket.SocketLib
 {
@@ -15,9 +16,7 @@ namespace NSocket.SocketLib
         public event Action<string> ClientConnected;
         public event Action<string> clientDisconnected;
 
-        private Dictionary<string, ClientItem> Clients;
-
-        public List<string> OnlineClients { get { return Clients.Keys.ToList(); } }
+        public string[] OnlineClients { get { return this.clientPool.OnlineUID; } }
 
         /// <summary>
         /// 接收到信息时的事件委托
@@ -29,18 +28,22 @@ namespace NSocket.SocketLib
         /// 接收到信息时的事件
         /// </summary>
         public event ReceiveMsgHandler OnMsgReceived;
+        private System.Threading.Timer WasteClientMonitor;
+        private int numConcurrence;
+        private NSocketClientPool clientPool;
+        private Semaphore semaphoreAcceptedClients;
 
         /// <summary>
         /// 初始化服务器端
         /// </summary>
-        public SocketListener(Int32 receiveBufferSize)
+        public SocketListener(int receiveBufferSize, int numConcurrence)
         {
             this.ReceiveBufferSize = receiveBufferSize;
             //this.numConnections = 0;
-            //this.numConcurrence = numConcurrence;
+            this.numConcurrence = numConcurrence;
             //this.bufferManager = new BufferManager(receiveBufferSize * numConcurrence * opsToPreAlloc, receiveBufferSize);
-            //this.readWritePool = new SocketAsyncEventArgsPool(numConcurrence);
-            //this.semaphoreAcceptedClients = new Semaphore(numConcurrence, numConcurrence);
+            this.clientPool = new NSocketClientPool(numConcurrence);
+            this.semaphoreAcceptedClients = new Semaphore(numConcurrence, numConcurrence);
             //handler = new RequestHandler();
             //this.GetIDByIP = GetIDByIP;
         }
@@ -50,19 +53,32 @@ namespace NSocket.SocketLib
         /// </summary>
         public void Init()
         {
-            Clients = new Dictionary<string, ClientItem>();
+            this.WasteClientMonitor = new System.Threading.Timer(WasteClientMonitorHandler, null, 1000 * 5, 1000 * 5);//Clean waste client period is 1 min.
             //this.bufferManager.InitBuffer();
-            //ClientItem readWriteEventArgWithId;
-            //for (Int32 i = 0; i < this.numConcurrence; i++)
-            //{
-            //    readWriteEventArgWithId = new ClientItem();
-            //    readWriteEventArgWithId.ReceiveSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceiveCompleted);
-            //    readWriteEventArgWithId.SendSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendCompleted);
-            //    //只给接收的SocketAsyncEventArgs设置缓冲区
-            //    this.bufferManager.SetBuffer(readWriteEventArgWithId.ReceiveSAEA);
-            //    this.readWritePool.Push(readWriteEventArgWithId);
-            //}
+            NSocketSAEAItem clientItem;
+            for (Int32 i = 0; i < this.numConcurrence; i++)
+            {
+                clientItem = new NSocketSAEAItem();
+                clientItem.ReceiveSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceiveCompleted);
+                clientItem.SendSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendCompleted);
+                //只给接收的SocketAsyncEventArgs设置缓冲区
+                //this.bufferManager.SetBuffer(readWriteEventArgWithId.ReceiveSAEA);
+                this.clientPool.Push(clientItem);
+            }
             //serverstate = ServerState.Inited;
+        }
+
+        private void WasteClientMonitorHandler(object state)
+        {
+            var currentExpriedTime = DateTime.Now.AddMilliseconds(-15 * 1000);
+
+            var wasteClientList = this.clientPool.busyPool.Where(p => p.Value.LastMessageTime <= currentExpriedTime).Select(p => p.Key).ToList();//Old date < new date
+            var wasteClientKeys = new string[wasteClientList.Count];
+            wasteClientList.CopyTo(wasteClientKeys);
+            foreach (var wasteClientKey in wasteClientKeys)
+            {
+                CloseClientConnection(wasteClientKey);
+            }
         }
 
         /// <summary>
@@ -82,18 +98,12 @@ namespace NSocket.SocketLib
             {
                 this.listenSocket.Bind(localEndPoint);
             }
-            this.listenSocket.Listen(100);
-            this.StartAccept(null);
 
-            //listenCTS = new CancellationTokenSource();
-            ////listenThread = new Thread((o) => { Listen(); });
-            ////listenThread.Start();
-            //ThreadPool.QueueUserWorkItem((o) => { Listen(); });
-            ////开始监听已连接用户的发送数据
-            //StartListenThread();
-            //serverstate = ServerState.Running;
-            //listenerStopEvent.WaitOne();
+            this.listenSocket.Listen(1);
+            this.StartAccept(null);
         }
+
+        #region Accept
 
         /// <summary>
         /// 接受客户端的连接请求
@@ -110,11 +120,16 @@ namespace NSocket.SocketLib
             }
             else
                 acceptEventArg.AcceptSocket = null;
-            //this.semaphoreAcceptedClients.WaitOne();//控制服务器端总链接,但是即使达到链接的上限，Socket还是会接收Client Connect, 一旦有Client Disconnect, 之前排队的就会丢失.
-            Boolean willRaiseEvent = this.listenSocket.AcceptAsync(acceptEventArg);
-            if (!willRaiseEvent)
+            this.semaphoreAcceptedClients.WaitOne();//控制服务器端总链接,但是即使达到链接的上限，Socket还是会接收Client Connect, 一旦有Client Disconnect, 之前排队的就会丢失.
+
+            if (this.listenSocket != null)//Check listen socket status before next accept preparation
             {
-                this.ProcessAccept(acceptEventArg);
+                Boolean willRaiseEvent = this.listenSocket.AcceptAsync(acceptEventArg);
+                Console.WriteLine("TID: #{0} prepare to accept next client", System.Threading.Thread.CurrentThread.ManagedThreadId);
+                if (!willRaiseEvent)
+                {
+                    this.ProcessAccept(acceptEventArg);
+                }
             }
         }
 
@@ -125,9 +140,14 @@ namespace NSocket.SocketLib
         /// <param name="e"></param>
         private void OnAcceptCompleted(object sender, SocketAsyncEventArgs e)
         {
-            this.ProcessAccept(e);
+            Console.WriteLine("TID: #{0} accept a client", System.Threading.Thread.CurrentThread.ManagedThreadId);
+            this.StartAccept(e);
+            ThreadPool.QueueUserWorkItem((o) => { this.ProcessAccept(e); });
         }
 
+        #endregion
+
+        #region Receive
         /// <summary>
         /// 客户端连接请求处理方法
         /// </summary>
@@ -141,58 +161,48 @@ namespace NSocket.SocketLib
 
             string UID = Guid.NewGuid().ToString();//使用Guid作为客户端请求的ID, 不使用Client IP的原因是允许同一个IP建立多个连接.
 
-            ClientItem readEventArgsWithId = new ClientItem(UID, e.AcceptSocket);
-            readEventArgsWithId.ReceiveSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceiveCompleted);
-            readEventArgsWithId.SendSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendCompleted);
+            NSocketSAEAItem readEventArgsWithId = this.clientPool.Pop(UID, e.AcceptSocket);// new NSocketSAEAItem(UID, e.AcceptSocket);
+            //readEventArgsWithId.ReceiveSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceiveCompleted);
+            //readEventArgsWithId.SendSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendCompleted);
             byte[] acceptBuffer = new byte[1024];
             readEventArgsWithId.ReceiveSAEA.SetBuffer(acceptBuffer, 0, acceptBuffer.Length);
-
-            Boolean willRaiseEvent = (readEventArgsWithId.ReceiveSAEA.UserToken as Socket).ReceiveAsync(readEventArgsWithId.ReceiveSAEA);
-            if (!willRaiseEvent)
-                ProcessReceive(readEventArgsWithId.ReceiveSAEA);
-
-            Clients.Add(UID, readEventArgsWithId);
             ClientConnected(UID);
-            this.StartAccept(e);
+            ReceiveListen(readEventArgsWithId.ReceiveSAEA);
+
         }
 
         private void OnReceiveCompleted(object sender, SocketAsyncEventArgs e)
         {
-            ProcessReceive(e as NSocket.SocketLib.NSocketSocketAsyncEventArgs);
-        }
+            Console.WriteLine("TID: #{0} receive a message", System.Threading.Thread.CurrentThread.ManagedThreadId);
+            var SAEA = e as NSocket.SocketLib.NSocketSocketAsyncEventArgs;
 
-        private void ProcessReceive(NSocketSocketAsyncEventArgs e)
-        {
+            if (this.clientPool.busyPool.ContainsKey(SAEA.UID))
+            {
+                this.clientPool.busyPool[SAEA.UID].LastMessageTime = DateTime.Now;
+            }
+            else
+            {
+                Console.WriteLine("Couldn't found {0} in client lists", SAEA.UID);
+            }
+
             if (e.LastOperation != SocketAsyncOperation.Receive)
                 return;
 
             if (e.SocketError == SocketError.ConnectionReset)
             {
-                this.CloseClientSocket(e.UID);
-                this.Clients.Remove(e.UID);
-                OnMsgReceived(e.UID, "Closed by client");
+                CloseClientConnection(SAEA.UID);
+                clientDisconnected(SAEA.UID);//Client Close.
+
+            }
+            else if (e.SocketError == SocketError.Disconnecting)
+            {
+                this.CloseClientConnection(SAEA.UID);
+                OnMsgReceived(SAEA.UID, "Closed by client");
             }
             else if (e.SocketError == SocketError.Success)
             {
-                //OnMsgReceived(e.UID, e.SocketError.ToString());
-                if (e.BytesTransferred > 0)
-                {
-                    if (e.SocketError == SocketError.Success)
-                    {
-                        Int32 byteTransferred = e.BytesTransferred;
-                        string received = Encoding.Unicode.GetString(e.Buffer, e.Offset, byteTransferred);
-                        OnMsgReceived(e.UID, received);
-                        //检查消息的准确性
-                        //string[] msg = handler.GetActualString(received);
-                        //foreach (string m in msg)
-                        //    OnMsgReceived(e.UID, m);
-                        //可以在这里设一个停顿来实现间隔时间段监听，这里的停顿是单个用户间的监听间隔
-                        //发送一个异步接受请求，并获取请求是否为成功
-                        Boolean willRaiseEvent = (e.UserToken as Socket).ReceiveAsync(e);
-                        if (!willRaiseEvent)
-                            ProcessReceive(e);
-                    }
-                }
+                ProcessReceive(SAEA);
+                ReceiveListen(SAEA);
             }
             else if (e.SocketError == SocketError.OperationAborted || e.SocketError == SocketError.ConnectionAborted)
             {
@@ -204,16 +214,58 @@ namespace NSocket.SocketLib
             }
         }
 
+        private void ReceiveListen(NSocketSocketAsyncEventArgs e)
+        {
+            var socket = e.Socket;
+            if (socket.Connected)
+            {
+                Boolean willRaiseEvent = socket.ReceiveAsync(e);
+                Console.WriteLine("TID: #{0} prepare to receive next", System.Threading.Thread.CurrentThread.ManagedThreadId);
+                if (!willRaiseEvent)
+                    ProcessReceive(e);
+            }
+        }
+
+        private void ProcessReceive(NSocketSocketAsyncEventArgs e)
+        {
+            //OnMsgReceived(e.UID, e.SocketError.ToString());
+            if (e.BytesTransferred > 0)
+            {
+                Int32 byteTransferred = e.BytesTransferred;
+                string received = Encoding.Unicode.GetString(e.Buffer, e.Offset, byteTransferred);
+                OnMsgReceived(e.UID, received);
+                //检查消息的准确性
+                //string[] msg = handler.GetActualString(received);
+                //foreach (string m in msg)
+                //    OnMsgReceived(e.UID, m);
+                //可以在这里设一个停顿来实现间隔时间段监听，这里的停顿是单个用户间的监听间隔
+                //发送一个异步接受请求，并获取请求是否为成功
+            }
+            else
+            {
+                Console.WriteLine(e.BytesTransferred);
+            }
+        }
+
+        #endregion
+
+        #region Send
         private void OnSendCompleted(object sender, SocketAsyncEventArgs e)
         {
-            ProcessSend(e as NSocketSocketAsyncEventArgs);
+            //ThreadPool.QueueUserWorkItem((o) => { ProcessSend(e as NSocketSocketAsyncEventArgs); });
         }
+
+        //private void ProcessSend(SocketAsyncEventArgs e)
+        //{
+        //    if (e.LastOperation != SocketAsyncOperation.Send)
+        //        return;
+        //}
 
         public void Send(string uid, string msg)
         {
-            if (uid == string.Empty || uid == "" || msg == string.Empty || msg == "" || !this.Clients.ContainsKey(uid))
+            if (uid == string.Empty || uid == "" || msg == string.Empty || msg == "" || !this.clientPool.BusyPoolContains(uid))
                 return;
-            SocketAsyncEventArgs socketWithId = this.Clients[uid].SendSAEA;
+            var socketWithId = this.clientPool.FindByUID(uid).SendSAEA;
             if (socketWithId == null)
             {
                 //说明用户已经断开  
@@ -226,7 +278,7 @@ namespace NSocket.SocketLib
             }
             else
             {
-                SocketAsyncEventArgs e = socketWithId;
+                var e = socketWithId;
                 if (e.SocketError == SocketError.Success)
                 {
                     int i = 0;
@@ -235,10 +287,16 @@ namespace NSocket.SocketLib
                         string message = @"[lenght=" + msg.Length + @"]" + msg;
                         byte[] sendbuffer = Encoding.Unicode.GetBytes(message);
                         e.SetBuffer(sendbuffer, 0, sendbuffer.Length);
-                        Boolean willRaiseEvent = (e.UserToken as Socket).SendAsync(e);
+                        Boolean willRaiseEvent = e.Socket.SendAsync(e);
+
                         if (!willRaiseEvent)
                         {
-                            this.ProcessSend(e);
+                            Console.WriteLine("Send failure, resend");
+                            //this.ProcessSend(e);
+                        }
+                        else
+                        {
+                            Console.WriteLine("TID: #{0} sended a message", System.Threading.Thread.CurrentThread.ManagedThreadId);
                         }
                     }
                     catch (Exception ex)
@@ -259,47 +317,31 @@ namespace NSocket.SocketLib
                 else
                 {
                     //OnSended(uid, "200");
-                    this.CloseClientSocket(uid);
-                    this.Clients.Remove(uid);
+                    this.CloseClientConnection(uid);
                 }
             }
         }
 
-        private void ProcessSend(SocketAsyncEventArgs e)
-        {
-            if (e.LastOperation != SocketAsyncOperation.Send)
-                return;
-        }
+        #endregion
 
-        private void CloseClientSocket(string uid)
+        #region Stop Listener
+
+        private void CloseClientConnection(string uid)
         {
             if (uid == string.Empty || uid == "")
                 return;
-            SocketAsyncEventArgs saeaw = this.Clients[uid].ReceiveSAEA;
-            if (saeaw == null)
+            var client = this.clientPool.FindByUID(uid);
+            if (client == null)
                 return;
-            Socket s = saeaw.UserToken as Socket;
-            //此处为何只关闭Receive, 而不关闭Send?
             try
             {
-                s.Close();//Tell client(Client will received a ConnectionReset error);
-                if (s.Connected) //If raised by server, need to discount client socket first.
-                    s.Disconnect(true);
-
-                s.Shutdown(SocketShutdown.Both);
-                s.Dispose();
-                saeaw.Dispose();//SAEA销毁
+                this.clientPool.Push(client);
+                this.semaphoreAcceptedClients.Release();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 //客户端已经关闭
             }
-            //this.semaphoreAcceptedClients.Release();
-            //Interlocked.Decrement(ref this.numConnections);
-            //this.readWritePool.Push(saeaw);
-
-            //OnMsgReceived(uid, " discounnect");
-
         }
 
         /// <summary>
@@ -307,24 +349,25 @@ namespace NSocket.SocketLib
         /// </summary>
         public void Stop()
         {
-            string[] clientKeys = new string[this.Clients.Count];
-            this.Clients.Keys.CopyTo(clientKeys, 0);
-            foreach (var client in clientKeys)
-            {
+            string[] clientKeys = new string[this.clientPool.OnlineUID.Length];
+            this.OnlineClients.CopyTo(clientKeys, 0);
 
-                //(client.ReceiveSAEA.UserToken as Socket).Disconnect(false);
-                //client.Dispose();
-                CloseClientSocket(client);
+            foreach (var clientKey in clientKeys)
+            {
+                CloseClientConnection(clientKey);
             }
 
             if (listenSocket != null)
             {
-                //listenSocket.Disconnect(false);
                 listenSocket.Close();
-                //listenSocket.Shutdown(SocketShutdown.Both);
+                if (listenSocket.Connected)
+                    listenSocket.Disconnect(false);
+                listenSocket.Dispose();
 
                 listenSocket = null;
             }
         }
+
+        #endregion
     }
 }

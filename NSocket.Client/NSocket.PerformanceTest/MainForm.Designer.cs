@@ -37,8 +37,9 @@
             this.label3 = new System.Windows.Forms.Label();
             this.tbPort = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
-            this.lvClients = new System.Windows.Forms.ListView();
+            this.lvClients = new ComponentOwl.BetterListView.BetterListView();
             this.groupBox1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.lvClients)).BeginInit();
             this.SuspendLayout();
             // 
             // groupBox1
@@ -127,11 +128,10 @@
             // 
             // lvClients
             // 
-            this.lvClients.Location = new System.Drawing.Point(12, 80);
+            this.lvClients.Location = new System.Drawing.Point(12, 70);
             this.lvClients.Name = "lvClients";
-            this.lvClients.Size = new System.Drawing.Size(1239, 564);
-            this.lvClients.TabIndex = 5;
-            this.lvClients.UseCompatibleStateImageBehavior = false;
+            this.lvClients.Size = new System.Drawing.Size(1246, 583);
+            this.lvClients.TabIndex = 6;
             // 
             // MainForm
             // 
@@ -145,6 +145,7 @@
             this.Text = "NSocket Server Performance Tool";
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.lvClients)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -158,9 +159,9 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.TextBox tbPort;
         private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.ListView lvClients;
         private System.Windows.Forms.TextBox tbClientNum;
         private System.Windows.Forms.Label label3;
+        private ComponentOwl.BetterListView.BetterListView lvClients;
 
     }
 }

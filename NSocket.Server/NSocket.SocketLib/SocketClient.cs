@@ -58,6 +58,8 @@ namespace NSocket.SocketLib
         private SocketAsyncEventArgs listenerSocketAsyncEventArgs;
 
         public event Action<SocketError> ServerEvent;
+
+        public event Action ServerStop;
         public event Action<byte[], int, int> DateReceivedEvent;
         public event Action<byte[], int, int> DataSendedEvent;
 
@@ -72,6 +74,7 @@ namespace NSocket.SocketLib
         {
             this.MESSAGE_BUFFER_SIZE = messageBuffer;
             this.hostEndPoint = new IPEndPoint(address, port);
+            this.clientSocket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         }
 
         #region Connect
@@ -82,7 +85,9 @@ namespace NSocket.SocketLib
         public bool Connect()
         {
             if (this.clientSocket != null)
-                this.clientSocket.Dispose();//Destroy old socket when reconnect.
+            {
+                this.clientSocket.Dispose();
+            }
             this.clientSocket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             SocketAsyncEventArgs connectArgs = new SocketAsyncEventArgs();
             connectArgs.UserToken = this.clientSocket;
@@ -92,7 +97,7 @@ namespace NSocket.SocketLib
             connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
             clientSocket.ConnectAsync(connectArgs);
 
-            autoConnectEvent.WaitOne(1000);//Waiting for the connect result.
+            autoConnectEvent.WaitOne(10000);//Waiting for the connect result.
             if (connectArgs.SocketError == SocketError.Success && this.clientSocket.Connected)
             {
                 listenerSocketAsyncEventArgs = new SocketAsyncEventArgs();
@@ -135,6 +140,8 @@ namespace NSocket.SocketLib
         /// <param name="e"></param>
         private void OnReceive(object sender, SocketAsyncEventArgs e)
         {
+            if (e.LastOperation != SocketAsyncOperation.Receive)
+                return;
             //OnMsgReceived(string.Format("Server COMMAND: {0}", e.SocketError.ToString()));
             switch (e.SocketError)
             {
@@ -143,6 +150,9 @@ namespace NSocket.SocketLib
                     DateReceivedEvent(e.Buffer, e.Offset, e.BytesTransferred);
                     //string msg = Encoding.Unicode.GetString(e.Buffer, 0, e.BytesTransferred);
                     //OnMsgReceived(msg);
+                    break;
+                case SocketError.ConnectionReset:
+                    ServerStop();
                     break;
                 default:
                     ServerEvent(e.SocketError);
@@ -189,7 +199,7 @@ namespace NSocket.SocketLib
             else
             {
                 OnSended(false);
-                this.ProcessError(e);
+                //this.ProcessError(e);
             }
         }
 
@@ -200,36 +210,7 @@ namespace NSocket.SocketLib
         /// </summary>
         public void Disconnect()
         {
-            clientSocket.Close();
-            clientSocket.Dispose();
-        }
-
-        /// <summary>
-        /// 处理错误
-        /// </summary>
-        /// <param name="e"></param>
-        private void ProcessError(SocketAsyncEventArgs e)
-        {
-            Socket s = e.UserToken as Socket;
-            if (s.Connected)
-            {
-                try
-                {
-                    s.Shutdown(SocketShutdown.Both);
-                }
-                catch (Exception)
-                {
-                    //client already closed
-                }
-                finally
-                {
-                    if (s.Connected)
-                    {
-                        s.Close();
-                    }
-                }
-            }
-            throw new SocketException((Int32)e.SocketError);
+            this.clientSocket.Close();
         }
 
         #region IDisposable Members

@@ -39,10 +39,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="NSocketClientPool.cs" />
     <Compile Include="NSocketRebot.cs" />
     <Compile Include="NSocketSocketAsyncEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ClientItem.cs" />
+    <Compile Include="NSocketSAEAItem.cs" />
     <Compile Include="SocketClient.cs" />
     <Compile Include="SocketListener.cs" />
   </ItemGroup>

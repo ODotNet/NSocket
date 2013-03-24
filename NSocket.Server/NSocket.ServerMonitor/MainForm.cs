@@ -28,7 +28,7 @@ namespace NSocket.ServerMonitor
             {
                 Action action = () =>
                 {
-                    this.tbOnlineUsers.Text = this.listener.OnlineClients.Count.ToString();
+                    this.tbOnlineUsers.Text = this.listener.OnlineClients.Length.ToString();
                 };
                 UIThreadInvoke(action);
             }
@@ -43,11 +43,12 @@ namespace NSocket.ServerMonitor
                 btnStop.Enabled = true;
                 ThreadPool.QueueUserWorkItem((o) =>
                 {
-                    listener = new SocketListener(1024);
+                    listener = new SocketListener(1024, 100);
                     listener.OnMsgReceived += listener_OnMsgReceived;
                     //listener.OnSended += listener_OnSended;
                     //listener.StartListenThread += listener_StartListenThread;
                     listener.ClientConnected += listener_ClientAccepted;
+                    listener.clientDisconnected += listener_clientDisconnected;
                     listener.Init();
                     listener.Start(port);
                 });
@@ -56,6 +57,11 @@ namespace NSocket.ServerMonitor
             {
                 MessageBox.Show("Wrong tcp port");
             }
+        }
+
+        void listener_clientDisconnected(string obj)
+        {
+
         }
 
         void listener_ClientAccepted(string uid)
