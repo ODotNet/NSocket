@@ -130,7 +130,9 @@ namespace NSocket.SocketLib
         /// </summary>
         public void Listen()
         {
-            (listenerSocketAsyncEventArgs.UserToken as Socket).ReceiveAsync(listenerSocketAsyncEventArgs);
+            var socket = listenerSocketAsyncEventArgs.UserToken as Socket;
+            if (socket.Connected)
+                socket.ReceiveAsync(listenerSocketAsyncEventArgs);
         }
 
         /// <summary>

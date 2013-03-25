@@ -141,7 +141,7 @@ namespace NSocket.SocketLib
         private void OnAcceptCompleted(object sender, SocketAsyncEventArgs e)
         {
             Console.WriteLine("TID: #{0} accept a client", System.Threading.Thread.CurrentThread.ManagedThreadId);
-            this.StartAccept(e);
+
             ThreadPool.QueueUserWorkItem((o) => { this.ProcessAccept(e); });
         }
 
@@ -166,9 +166,10 @@ namespace NSocket.SocketLib
             //readEventArgsWithId.SendSAEA.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendCompleted);
             byte[] acceptBuffer = new byte[1024];
             readEventArgsWithId.ReceiveSAEA.SetBuffer(acceptBuffer, 0, acceptBuffer.Length);
-            ClientConnected(UID);
-            ReceiveListen(readEventArgsWithId.ReceiveSAEA);
 
+            ReceiveListen(readEventArgsWithId.ReceiveSAEA);
+            this.StartAccept(e);
+            ClientConnected(UID);
         }
 
         private void OnReceiveCompleted(object sender, SocketAsyncEventArgs e)

@@ -225,7 +225,7 @@ namespace NSocket.SocketLib
                         message = String.Format("[length={0}]{1}", message.Length, message);
                         Byte[] sendBuffer = Encoding.Unicode.GetBytes(message);
                         this.client.Send(sendBuffer);
-                        Thread.Sleep(2000);
+                        Thread.Sleep(100);
                     }
                 }
             }

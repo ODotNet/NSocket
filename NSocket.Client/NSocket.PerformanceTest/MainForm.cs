@@ -166,21 +166,12 @@ namespace NSocket.PerformanceTest
                             rebot.WorkThreadID.ToString()};
                     swFindRebot.Stop();
 
-
-
-                    //item.SubItems.Clear();
-                    //item.SubItems.AddRange(rebotStrings);
                     item.SubItems[1].Text = rebot.Name;
                     item.SubItems[2].Text = rebot.DelayTime.ToString();
                     item.SubItems[3].Text = rebot.SendLength.ToString();
                     item.SubItems[4].Text = rebot.ReceivedLength.ToString();
                     item.SubItems[5].Text = rebot.WorkStatus.ToString();
-                    item.SubItems[5].ForeColor = rebot.WorkStatus == SocketLib.NSocketRebotWorkStatus.Running ? Color.Green : Color.Red;
                     item.SubItems[6].Text = rebot.ConnectStatus.ToString();
-                    item.SubItems[6].ForeColor =
-                        rebot.ConnectStatus == SocketLib.NSocketRebotConnectStatus.Connected
-                        ? Color.Green
-                        : rebot.ConnectStatus == SocketLib.NSocketRebotConnectStatus.Connecting ? Color.Yellow : Color.Red;
                     item.SubItems[7].Text = rebot.SendSuccessTimes.ToString();
                     item.SubItems[8].Text = rebot.SendFailureTimes.ToString();
                     item.SubItems[9].Text = rebot.ReceivedTimes.ToString();
@@ -201,7 +192,10 @@ namespace NSocket.PerformanceTest
         {
             foreach (var rebot in this.Rebots.Values)
             {
-                rebot.Stop();
+                ThreadPool.QueueUserWorkItem((o) =>
+                {
+                    rebot.Stop();
+                });
             }
 
             this.btnStop.Enabled = false;
