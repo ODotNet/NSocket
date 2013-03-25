@@ -7,7 +7,7 @@ Feature:
 1. Can limit the max client quantity.
 2. use connection pool to accept and manage clients.
 3. Client disconnect detective
-  a. client postive disconnect, ex: client close it socket by himself.
+	a. client postive disconnect, ex: client close it socket by himself.
 	b. server postive disconnect, ex: interruption of power supply.
 4. Use pre-allot for SAEA object to prevent memory fragmentation.
 
