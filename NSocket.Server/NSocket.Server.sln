@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NSocket.ServerMonitor", "NSocket.ServerMonitor\NSocket.ServerMonitor.csproj", "{55AD846A-FAC3-4EEA-B4B3-6C78A12B6CC0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NSocket.SocketLib", "NSocket.SocketLib\NSocket.SocketLib.csproj", "{BF02552A-5061-4650-9A26-C8D9F7A97F14}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{55AD846A-FAC3-4EEA-B4B3-6C78A12B6CC0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55AD846A-FAC3-4EEA-B4B3-6C78A12B6CC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55AD846A-FAC3-4EEA-B4B3-6C78A12B6CC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55AD846A-FAC3-4EEA-B4B3-6C78A12B6CC0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF02552A-5061-4650-9A26-C8D9F7A97F14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF02552A-5061-4650-9A26-C8D9F7A97F14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF02552A-5061-4650-9A26-C8D9F7A97F14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF02552A-5061-4650-9A26-C8D9F7A97F14}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
