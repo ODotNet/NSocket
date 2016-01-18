@@ -6,9 +6,7 @@ A high performance .net socket communication libiary
 Feature:
 
 1. Can limit the max client quantity.
-
 2. use connection pool to accept and manage clients.
-
 3. Client disconnect detective
 
 4. 
